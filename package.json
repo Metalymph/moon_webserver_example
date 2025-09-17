@@ -1,0 +1,11 @@
+{
+  "name": "moonbit-webserver-example",
+  "version": "1.0.0",
+  "description": "MoonBit webserver example using mocket",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "author": "",
+  "license": "Apache-2.0"
+}
