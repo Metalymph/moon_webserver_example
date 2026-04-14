@@ -1,23 +1,38 @@
-# Use Node.js runtime as the base image
-FROM node:24-slim
+# Build stage
+FROM debian:stable-slim AS builder
 
-# Set working directory
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MoonBit
+RUN curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+ENV PATH="/root/.moon/bin:${PATH}"
+
 WORKDIR /app
 
-# Copy the pre-built JavaScript files and dependencies
-COPY target/js/release/build/cmd/main/main.js ./main.js
-COPY package.json* ./
+# Copy project files
+COPY . .
 
-# Install dependencies if package.json exists
-RUN if [ -f package.json ]; then npm install; fi
+# Build the project for native release
+RUN moon update && moon build --target native --release
 
-# Use the existing node user from the base image
-RUN chown -R node:node /app
+# Find the binary (the path can vary based on module name) and move it to a known location
+RUN find _build -name "main.exe" -type f -exec cp {} ./server \;
 
-USER node
+# Final stage
+FROM debian:stable-slim
 
-# Expose port 4000
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/server ./server
+
+# Expose port (as specified in main.mbt)
 EXPOSE 4000
 
-# Set the entrypoint to run the JavaScript application
-ENTRYPOINT ["node", "main.js"]
+# Run the server
+ENTRYPOINT ["./server"]
