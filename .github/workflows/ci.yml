@@ -17,11 +17,11 @@ jobs:
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
           echo "$HOME/.moon/bin" >> $GITHUB_PATH
 
-      - name: MoonBit Check
-        run: moon check --target native
-
       - name: MoonBit Update
         run: moon update
+
+      - name: MoonBit Check
+        run: moon check --target native
 
       - name: MoonBit Build
         run: moon build --target native
