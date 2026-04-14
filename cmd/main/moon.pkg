@@ -1,9 +1,12 @@
 import {
   "bobzhang/crescent" @crescent,
+  "bobzhang/crescent/core",
   "moonbitlang/core/json",
   "moonbitlang/async",
-  "moonbitlang/x/sys" @sys,
   "Metalymph/relay" @relay,
+  "Metalymph/valkey" @valkey,
+  "username/webserver_example/lib/config" @config,
+  "username/webserver_example/lib/logger" @logger,
 }
 
 options(

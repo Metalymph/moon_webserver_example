@@ -1,0 +1,34 @@
+name: MoonBit CI
+
+on:
+  push:
+    branches: [ master, main, prod-server-ready ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  check-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> $GITHUB_PATH
+
+      - name: MoonBit Update
+        run: moon update
+
+      - name: MoonBit Check
+        run: moon check --target native
+
+      - name: MoonBit Build
+        run: moon build --target native
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: docker build -t moon-web-relay:test .

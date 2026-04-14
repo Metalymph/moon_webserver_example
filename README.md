@@ -1,67 +1,71 @@
-# MoonBit Webserver with Crescent & Relay
+# 🏮 MoonBit Production-Ready Webserver Template
 
-This project is a high-performance, native webserver built with **MoonBit**. It leverages **Crescent** for routing and **Relay** for asynchronous background task processing.
+A professional, high-performance webserver template built with **MoonBit**, leveraging **Crescent** for native routing and **Relay** for asynchronous background processing.
 
-## 🏗 Architecture
+## 🏗 High-Level Architecture
 
-The application is structured into a modern, native-compiled stack:
+This template provides a modular foundation for building scalable services:
 
-- **Core**: Written in [MoonBit](https://www.moonbitlang.com/), targeting **Native** for maximum performance.
-- **HTTP Layer**: Powered by [Crescent v0.9.0](https://mooncakes.io/docs/bobzhang/crescent). It provides a robust routing system, group middleware, and ergonomic response handlers.
-- **Message Queue**: Integrated with [Relay v0.1.0](https://mooncakes.io/docs/Metalymph/relay).
-  - Supports asynchronous job processing.
-  - Opt-in background workers for heavy tasks.
-  - Defaulting to an efficient `InMemoryBackend`.
-- **Infrastructure**: Distributed via a multi-stage **Docker** build that produces a minimal standalone binary (~1-2MB) running on `debian:slim`.
+- **`cmd/main/`**: The application entry point. Defines routes, attaches middleware, and coordinates the web server and background workers using structured concurrency (`with_task_group`).
+- **`lib/config/`**: Centralized configuration management. Uses `@string.parse_int` for type-safe environment variable parsing.
+- **`lib/logger/`**: Structured JSON logging with level-based filtering (`DEBUG`, `INFO`, `ERROR`). Optimized for modern observability stacks.
+- **Relay Processing**: Pluggable background task system. Supports **InMemory** for local development and **Valkey/Redis** for persistent production workloads.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- [MoonBit](https://www.moonbitlang.com/install/) toolchain installed.
-- [watchexec](https://github.com/watchexec/watchexec) (optional, for hot-reload).
-- [just](https://github.com/casey/just) or `make` for command execution.
+- [MoonBit](https://www.moonbitlang.com/install/) toolchain.
+- [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/).
 
-### Development
+### Development (Local)
 
-Run the server with the **Relay** architecture enabled or disabled:
+Run with standard settings (InMemory Relay, Info logs):
 
 ```bash
-# Default: Relay disabled
-just dev
-
-# Opt-in: Relay enabled (launches background workers)
 just relay=true dev
 ```
 
-Or using `make`:
+### Production Preview (Valkey)
+
+Start the full stack with persistent messaging and debug logs enabled:
 
 ```bash
-make dev RELAY=true
+LOG_LEVEL=DEBUG docker compose up --build
 ```
 
-### Features & Endpoints
+## 📂 Design Implementation Details
 
-- `GET /`: Basic heartbeat.
-- `GET /hello/:name`: Dynamic routing.
-- `GET /json`: High-performance JSON serialization.
-- `GET /relay/push?payload=...`: (Only if Relay is enabled) Pushes a task to the background worker.
+### Configuration Logic
 
-## 🐳 Docker Deployment
+The `Config` struct in `lib/config` automatically resolves overrides from the environment. This ensures that the same binary can be deployed across multiple environments (staging, production) without modification.
 
-The project uses a serious multi-stage Dockerfile that builds the system from source and exports only the binary.
+### Structured Logging
 
-```bash
-# Build the image
-just docker-build
+Logs are emitted as JSON objects to standard output. This allows for easy parsing by agents like FluentBit or Datadog. The `LOG_LEVEL` toggle prevents noise in production while allowing deep visibility during debugging.
 
-# Run the container
-just relay=true docker-run
-```
+### Multi-Backend Relay
 
-## 🛠 Project Structure
+The server can be configured to use `Valkey` as a message backend. If the connection fails, the system gracefully fails back to an `InMemory` queue to prevent data loss or server crashes, while logging the incident as an `ERROR`.
 
-- `cmd/main/main.mbt`: Application entry point and route definitions.
-- `moon.mod.json`: Project dependencies and metadata.
-- `justfile` / `Makefile`: Ergonomic shortcuts for common tasks.
-- `Dockerfile`: Production-ready multi-stage container build.
+## 🛠 environment Configuration
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | `4000` | Server listening port |
+| `USE_RELAY` | `false` | Enable/Disable Relay workers |
+| `RELAY_BACKEND` | `memory` | `memory` or `valkey` |
+| `VALKEY_URL` | `valkey://localhost:6379` | Connection string for Valkey |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `ERROR` |
+
+## 🐳 Deployment
+
+The multi-stage `Dockerfile` produces a minimal (~2MB) native binary image based on `debian:slim`. It leverages the modern MoonBit build system to produce zero-dependency, high-performance artifacts.
+
+## 🤖 CI/CD Foundations
+
+Included in `.github/workflows/ci.yml` is an automated pipeline that:
+
+1. Performs static analysis (`moon check`).
+2. Runs the test suite (`moon test`).
+3. Validates the container build.

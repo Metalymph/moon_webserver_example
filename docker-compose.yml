@@ -1,0 +1,18 @@
+services:
+  webserver:
+    build: .
+    image: moon-web-relay:latest
+    ports:
+      - "4000:4000"
+    environment:
+      - USE_RELAY=true
+      - RELAY_BACKEND=valkey
+      - VALKEY_URL=valkey://valkey:6379
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      - valkey
+
+  valkey:
+    image: valkey/valkey:8.0-latest
+    ports:
+      - "6379:6379"
