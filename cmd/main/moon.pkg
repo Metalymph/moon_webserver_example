@@ -1,0 +1,11 @@
+import {
+  "bobzhang/crescent" @crescent,
+  "moonbitlang/core/json",
+  "moonbitlang/async",
+  "moonbitlang/x/sys" @sys,
+  "Metalymph/relay" @relay,
+}
+
+options(
+  "is-main": true,
+)
