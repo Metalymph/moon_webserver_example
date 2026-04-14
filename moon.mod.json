@@ -4,8 +4,9 @@
   "deps": {
     "bobzhang/crescent": "0.9.0",
     "moonbitlang/async": "0.17.0",
-    "moonbitlang/x": "0.4.41",
-    "Metalymph/relay": "0.1.0"
+    "moonbitlang/x": "0.1.0",
+    "Metalymph/relay": "0.1.0",
+    "Metalymph/valkey": "0.1.0"
   },
   "readme": "README.mbt.md",
   "repository": "",

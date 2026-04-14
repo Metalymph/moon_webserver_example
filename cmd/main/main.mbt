@@ -1,17 +1,51 @@
+// --- Webserver Template ---
+
 ///|
 async fn main {
+  // 1. Load Configuration
+  let cfg = @config.Config::load()
+  @logger.info("🚀 Starting server on port \{cfg.port}")
+
   @async.with_task_group(
     async fn(tg) {
       let app = @crescent.Mocket()
 
-      // --- Relay Setup (Opt-in) ---
-      let use_relay = @sys.get_env_var("USE_RELAY").unwrap_or("false") == "true"
-      if use_relay {
-        println("🏮 Relay: Initializing background workers...")
-        let backend : @relay.InMemoryBackend[String] = @relay.InMemoryBackend::new(
-          1000,
-        )
-        let queue = backend.to_relay_queue()
+      // 2. Relay Setup (Opt-in & Multi-backend)
+      if cfg.relay_enabled {
+        @logger.info("🏮 Relay: Initializing background workers...")
+
+        let queue = match cfg.relay_backend {
+          InMemory => {
+            @logger.info("📦 Using InMemory Relay backend")
+            let backend : @relay.InMemoryBackend[String] = @relay.InMemoryBackend::new(
+              1000,
+            )
+            backend.to_relay_queue()
+          }
+          Valkey => {
+            @logger.info("🔌 Connecting to Valkey (localhost:6379)")
+            try {
+              // In production, you would parse cfg.valkey_url to get host/port
+              let valkey_client = @valkey.Client::connect("localhost", 6379)
+              let backend = @relay.RedisBackend::new(
+                valkey_client,
+                "relay-tasks",
+                fn(s) { s },
+                fn(s) { s },
+              )
+              backend.to_relay_queue()
+            } catch {
+              err => {
+                @logger.error("❌ Failed to connect to Valkey: \{err}")
+                @logger.info("⚠️ Falling back to InMemory Relay")
+                let backend : @relay.InMemoryBackend[String] = @relay.InMemoryBackend::new(
+                  1000,
+                )
+                backend.to_relay_queue()
+              }
+            }
+          }
+        }
 
         // Example worker: Process messages from the queue
         tg.spawn_bg(
@@ -20,144 +54,82 @@ async fn main {
               @relay.start_worker(
                 queue,
                 fn(msg) {
-                  println(
+                  @logger.info(
                     "👷 Relay Worker: Processing message \{msg.id} -> \{msg.payload}",
                   )
                 },
               )
             } catch {
-              _ => println("🛑 Relay Worker stopped.")
+              _ => @logger.info("🛑 Relay Worker stopped.")
             }
           },
         )
 
-        // Add endpoint to push tasks to relay
+        // Endpoint to push tasks to relay
         app.get(
           "/relay/push",
           async fn(event) {
             let payload = event.req.get_query("payload").unwrap_or("default-task")
             try {
               queue.push(payload)
+              @logger.info("📥 Task queued: \{payload}")
             } catch {
-              err => println("❌ Relay Push Error: \{err}")
+              err => @logger.error("❌ Relay Push Error: \{err}")
             }
-            "Task pushed to Relay: \{payload}"
+            "Task queued: \{payload}"
           },
         )
       }
 
-      // Register global middleware
+      // 3. Middlewares
       app
       ..use_middleware(
         (event, next) => {
-          println("📝 Request: \{event.req.http_method} \{event.req.url}")
+          @logger.debug("📝 Request: \{event.req.http_method} \{event.req.url}")
+          next()
+        },
+      )
+      // Example of adding security headers (custom middleware)
+      ..use_middleware(
+        (event, next) => {
+          ignore(event.res.header("X-Content-Type-Options", "nosniff"))
+          ignore(event.res.header("X-Frame-Options", "DENY"))
           next()
         },
       )
 
-      // Text Response
-      ..get("/", _event => "⚡️ Tadaa!")
+      // 4. Routes
+      // Basic heartbeat
+      ..get("/", _event => "⚡️ Welcome to the Production-Ready MoonBit Server!")
+
+      // Health checks (Phase 3)
+      ..get(
+        "/healthz",
+        _event => ({ "status": "ok", "version": "1.0.0" } : Json),
+      )
 
       // Hello World
-      ..on("GET", "/hello", _ => "Hello world!")
-      .group(
-        "/api",
-        (group) => {
-          // 添加组级中间件
-          group.use_middleware(
-            (event, next) => {
-              println(
-                "🔒 API Group Middleware: \{event.req.http_method} \{event.req.url}",
-              )
-              next()
-            },
-          )
-          group.get("/hello", _ => "Hello world!")
-          group.get(
-            "/json",
-            _ => ({ "name": "John Doe", "age": 30, "city": "New York" } : Json),
-          )
-        },
-      )
+      ..get("/hello/:name", (event) => {
+        let name = event.param("name").unwrap_or("World")
+        "Hello, \{name}!"
+      })
 
-      // JSON Response
-      app
-      ..get(
-        "/json",
-        _event => ({ "name": "John Doe", "age": 30, "city": "New York" } : Json),
-      )
-
-      // Async Response
-      ..get(
-        "/async_data",
-        _event => ({ "name": "John Doe", "age": 30, "city": "New York" } : Json),
-      )
-
-      // Dynamic Routes
-      // /hello2/World = Hello, World!
-      ..get(
-        "/hello/:name",
-        (event) => {
-          let name = event.param("name").unwrap_or("World")
-          "Hello, \{name}!"
-        },
-      )
-      // /hello2/World = Hello, World!
-      ..get(
-        "/hello2/*",
-        (event) => {
-          let name = event.param("_").unwrap_or("World")
-          "Hello, \{name}!"
-        },
-      )
-
-      // Wildcard Routes
-      // /hello3/World/World = Hello, World/World!
-      ..get(
-        "/hello3/**",
-        (event) => {
-          let name = event.param("_").unwrap_or("World")
-          "Hello, \{name}!"
-        },
-      )
-
-      // Echo Server
-      ..post(
-        "/echo",
-        (e) => {
-          let body : Bytes = e.req.body()
-          body
-        },
-      )
-
-      // 404 Page
+      // JSON example
       .get(
-        "/404",
-        (e) => {
-          e.res.status_code = @crescent.StatusCode::from_int(404)
-          @crescent.html(
-            (
-              #|<html>
-              #|<body>
-              #|  <h1>404</h1>
-              #|</body>
-              #|</html>
-            ),
-          )
-        },
+        "/api/user",
+        _ => ({ "id": 1, "username": "moon_dev", "role": "admin" } : Json),
       )
 
-      // Print Server URL
+      // 5. Server Startup
+      @logger.info("📡 Routes initialized:")
       for path in app.routes() {
-        println("\{path.0} http://localhost:4000\{path.1}")
+        @logger.info("   \{path.0} -> \{path.1}")
       }
 
-      // Serve
-      println("🚀 Server active on http://localhost:4000")
       try {
-        app.serve(port=4000)
+        app.serve(port=cfg.port)
       } catch {
-        err => println("Server error: \{err}")
+        err => @logger.error("🔥 Server Panic: \{err}")
       }
     },
   )
