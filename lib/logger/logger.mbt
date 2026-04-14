@@ -1,5 +1,5 @@
 ///|
-enum LogLevel {
+priv enum LogLevel {
   DEBUG
   INFO
   ERROR
